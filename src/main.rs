@@ -62,6 +62,7 @@ fn connect_and_poll_twitch(config: &Yaml) {
             .join(channel.to_owned())
             .exit_on_error("Can not connect to Twitch channel!");
         info!("Joined the Twitch channel: {channel}");
+        println!("listening for Twitch messages...");
 
         // keep the tokio executor alive.
         let exit_signal = keyboard::get_exit_cancellation_token();

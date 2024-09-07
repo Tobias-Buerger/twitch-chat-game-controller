@@ -56,7 +56,7 @@ pub trait ParseKey {
 
 impl ParseKey for Key {
     fn parse(s: &str) -> Option<Key> {
-        match s.to_lowercase().as_str() {
+        match s.trim().to_lowercase().as_str() {
             "alt" => Some(Key::Alt),
             "altgr" => Some(Key::AltGr),
             "backspace" => Some(Key::Backspace),
@@ -89,7 +89,7 @@ impl ParseKey for Key {
             "rightarrow" | "->" | "right" => Some(Key::RightArrow),
             "shiftleft" | "shift" => Some(Key::ShiftLeft),
             "shiftright" => Some(Key::ShiftRight),
-            "space" | " " => Some(Key::Space),
+            "space" => Some(Key::Space),
             "tab" => Some(Key::Tab),
             "uparrow" | "up" => Some(Key::UpArrow),
             "printscreen" | "print" => Some(Key::PrintScreen),

@@ -27,7 +27,7 @@ enum Input {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Action {
     input: Vec<Input>,
-    time_ms: Duration,
+    time: Duration,
 }
 
 /// Handles chat messages and creates an [Action] if a command is recognized
@@ -61,8 +61,16 @@ impl ChatHandler {
             let time = Duration::from_millis(time);
             let keys = info["key"]
                 .as_str()
-                .exit_on_error(format!("Key in action {name} not found in config!").as_str())
-                .split("+");
+                .map(|s| s.to_owned())
+                .unwrap_or_else(|| {
+                    info["key"]
+                        .as_i64()
+                        .exit_on_error(
+                            format!("Key in action {name} not found in config!").as_str(),
+                        )
+                        .to_string()
+                });
+            let keys = keys.split("+");
             let keys: Vec<Input> = keys
                 .map(|key| {
                     Key::parse(key)
@@ -70,13 +78,7 @@ impl ChatHandler {
                 })
                 .map(Input::Keyboard)
                 .collect();
-            command_to_action.insert(
-                name.to_string(),
-                Action {
-                    input: keys,
-                    time_ms: time,
-                },
-            );
+            command_to_action.insert(name.to_string(), Action { input: keys, time });
         }
         Self {
             command_to_action,
@@ -85,9 +87,6 @@ impl ChatHandler {
     }
 
     pub fn handle(&mut self, message: &ServerMessage) {
-        if keyboard::PAUSE.load(Ordering::Relaxed) {
-            return;
-        }
         if let ServerMessage::Privmsg(PrivmsgMessage {
             message_text,
             sender,
@@ -95,17 +94,22 @@ impl ChatHandler {
         }) = message
         {
             println!("Twitch chat {}: {}", sender.name, message_text);
+            debug!("Received message {}: {}", sender.name, message_text);
             let text = message_text.trim();
             if let Some(action) = self.command_to_action.get(text) {
+                if keyboard::PAUSE.load(Ordering::Relaxed) {
+                    debug!("Ignoring action because of PAUSE request.");
+                    return;
+                }
                 if self.execute_action.swap(true, Ordering::SeqCst) {
                     debug!("Already executing action ignore {action:?}");
                     return;
                 }
                 debug!("Executing {action:?}...");
                 for input in &action.input {
-                    ChatHandler::handle_input(input, action.time_ms);
+                    ChatHandler::handle_input(input, action.time);
                 }
-                let time = action.time_ms;
+                let time = action.time;
                 let execute_action = self.execute_action.clone();
                 tokio::spawn(async move {
                     tokio::time::sleep(time).await;
